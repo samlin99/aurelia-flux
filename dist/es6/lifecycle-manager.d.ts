@@ -1,5 +1,5 @@
 declare module 'aurelia-flux' {
-  import { ClassActivator }  from 'aurelia-dependency-injection';
+  import { resolver }  from 'aurelia-dependency-injection';
   import { HtmlBehaviorResource }  from 'aurelia-templating';
   import { Dispatcher, DispatcherProxy }  from 'aurelia-flux/instance-dispatcher';
   import { FluxDispatcher }  from 'aurelia-flux/flux-dispatcher';
@@ -12,6 +12,14 @@ declare module 'aurelia-flux' {
     static interceptInstanceDeactivate(instance: any): any;
     static interceptInstanceDetached(instance: any): any;
     static interceptHtmlBehaviorResource(): any;
-    static interceptClassActivator(): any;
+    static interceptClassActivator(aurelia: any): any;
+  }
+  class DispatcherResolver {
+    get(container: any): any;
+  }
+  class InstanceDispatcher {
+    obj: any;
+    dispatch(method: any, payload: any): any;
+    connect(instance: any): any;
   }
 }

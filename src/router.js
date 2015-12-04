@@ -6,6 +6,7 @@ export class RouterManager {
     let router = aurelia.container.get(Router);
     let configuration = new RouterConfiguration();
 
+    router.container = aurelia.container;
     configuration.addPipelineStep("modelbind", FluxLifeCycleStep);
     router.configure(configuration);
   }

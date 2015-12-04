@@ -1,4 +1,4 @@
-import {ClassActivator} from 'aurelia-dependency-injection';
+import {resolver} from 'aurelia-dependency-injection';
 import {HtmlBehaviorResource} from 'aurelia-templating';
 import {Dispatcher, DispatcherProxy} from './instance-dispatcher';
 import {FluxDispatcher} from './flux-dispatcher';
@@ -56,13 +56,13 @@ export class LifecycleManager {
     }
 
     static interceptHtmlBehaviorResource() {
-      if(HtmlBehaviorResource === undefined || typeof HtmlBehaviorResource.prototype.analyze !== 'function') {
+      if(HtmlBehaviorResource === undefined || typeof HtmlBehaviorResource.prototype.initialize !== 'function') {
         throw new Error('Unsupported version of HtmlBehaviorResource');
       }
 
-      var analyzeImpl = HtmlBehaviorResource.prototype.analyze;
+      var analyzeImpl = HtmlBehaviorResource.prototype.initialize;
 
-      HtmlBehaviorResource.prototype.analyze = function(...args) {
+      HtmlBehaviorResource.prototype.initialize = function(...args) {
         let target = args[1];        
         if(    target
             && target.prototype
@@ -77,21 +77,54 @@ export class LifecycleManager {
       };
     }
 
-    static interceptClassActivator() {
-        if(ClassActivator.instance === undefined || ClassActivator.instance.invoke === undefined) {
-            throw new Error('Unsupported version of ClassActivator');
-        }
+    static interceptClassActivator(aurelia) {      
+        aurelia.container.setHandlerCreatedCallback(handler => {
+              //this callback is called once per type that the container will instantiate
+              //so, for Foo, it will be called once during the application lifetime
+              //but you can inspect what the container finds, change it and...
+              //control how instances of that type are created thereafter
 
-        var invokeImpl = ClassActivator.instance.invoke;
-        ClassActivator.instance.invoke = function(...invokeArgs) {
-            var args = invokeArgs[1],
-                instance;                
+              //so we only have to change the invocation when the type actually has a dependency on Dispatcher
+               // console.log("++++++++++++++++++++++++++++++++Test ");
+
+              let index = handler.dependencies.indexOf(Dispatcher);
+              if(index !== -1) {
+                handler.dependencies[index] = new DispatcherResolver();
+
+                let invoke = handler.invoke;
+                handler.invoke = function(container, dynamicDependencies) {
+                  let instance = invoke.call(handler, container, dynamicDependencies);
+                  container._lastDispatcher.connect(instance);
+                  container._lastDispatcher = null;
+                  return instance;
+                };
+              }
+
+
+              return handler
+            }
+        );
+        /*
+  
+        console.log(FactoryInvoker.instance);
+	 if(FactoryInvoker.instance === undefined || FactoryInvoker.instance.invoke === undefined) {
+            throw new Error('Unsupported version of FactoryInvoker');
+        }        
+        var invokeImpl = FactoryInvoker.instance.invoke;
+        FactoryInvoker.instance.invoke = function(...invokeArgs) {
+           // var args = invokeArgs[1],
+           //     instance;    
+		
+		var [type, args] = invokeArgs,
+                instance,
+                dispatcher = args.find((item) => { return item instanceof Dispatcher; });            
+    
 
             if(Array.isArray(args) === false) {
-                throw new Error('Unsupported version of ClassActivator');
+                throw new Error('Unsupported version of Container');
             }
             
-            var dispatcher = args.find((item) => { return item instanceof Dispatcher; });
+            //var dispatcher = args.find((item) => { return item instanceof Dispatcher; });
             
             if(dispatcher) {
                 var instancePromise = Promise.defer();
@@ -116,5 +149,40 @@ export class LifecycleManager {
 
             return instance;
         };
+        */
     }
 }
+
+    //a custom resolver's get is invoked by the container to "resolve" an instance
+    //we use a special resolver so we can capture the instance for later use in our invoke fixup
+    @resolver
+    class DispatcherResolver {
+      get(container) {
+        //not sure how you want to create it, but do that here
+        //and then store it temporarily on the container, so you can grab it later
+        return container._lastDispatcher = container.get(InstanceDispatcher); 
+      }
+    }
+
+    class InstanceDispatcher {
+      obj ;
+      dispatch(method, payload) {
+         this.obj.dispatch(method, payload);
+      }
+      connect(instance) {
+
+        if(Metadata.exists(Object.getPrototypeOf(instance))) {
+                if(instance[Symbols.instanceDispatcher] === undefined) {
+                    instance[Symbols.instanceDispatcher] = new Dispatcher(instance);
+                    this.obj = instance[Symbols.instanceDispatcher];
+                }                
+                instance[Symbols.instanceDispatcher].registerMetadata();
+            }
+
+            if(instance[Symbols.instanceDispatcher] !== undefined) {
+                LifecycleManager.interceptInstanceDeactivators(instance);
+            }
+
+            return instance;
+      }
+    }
