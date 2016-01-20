@@ -19,7 +19,7 @@ declare module 'aurelia-flux' {
   }
   class InstanceDispatcher {
     obj: any;
-    dispatch(method: any, payload: any): any;
+    dispatch(method: any, ...payload: any[]): any;
     connect(instance: any): any;
   }
 }

@@ -88,14 +88,29 @@ export class LifecycleManager {
                // console.log("++++++++++++++++++++++++++++++++Test ");
 
               let index = handler.dependencies.indexOf(Dispatcher);
+
+              if(index == -1) {  
+                  for(var i=0;i<handler.dependencies.length;i++) {
+                      if(handler.dependencies[i] instanceof DispatcherResolver)
+                          index = i;
+                  }
+              }              
+              
               if(index !== -1) {
                 handler.dependencies[index] = new DispatcherResolver();
 
                 let invoke = handler.invoke;
                 handler.invoke = function(container, dynamicDependencies) {
                   let instance = invoke.call(handler, container, dynamicDependencies);
-                  container._lastDispatcher.connect(instance);
-                  container._lastDispatcher = null;
+                  try{
+                      if(container._lastDispatcher == null)
+                        instance.dispatcher.connect(instance);
+                      else 
+                        container._lastDispatcher.connect(instance);
+                      container._lastDispatcher = null;
+                  } catch(e) {
+                    console.log(e);
+                  }
                   return instance;
                 };
               }
@@ -166,8 +181,8 @@ export class LifecycleManager {
 
     class InstanceDispatcher {
       obj ;
-      dispatch(method, payload) {
-         this.obj.dispatch(method, payload);
+      dispatch(method, ...payload) {
+         this.obj.dispatch(method, ...payload);
       }
       connect(instance) {
 

@@ -96,6 +96,13 @@ define(['exports', 'aurelia-dependency-injection', 'aurelia-templating', './inst
             aurelia.container.setHandlerCreatedCallback(function (handler) {
 
                 var index = handler.dependencies.indexOf(_instanceDispatcher.Dispatcher);
+
+                if (index == -1) {
+                    for (var i = 0; i < handler.dependencies.length; i++) {
+                        if (handler.dependencies[i] instanceof DispatcherResolver) index = i;
+                    }
+                }
+
                 if (index !== -1) {
                     (function () {
                         handler.dependencies[index] = new DispatcherResolver();
@@ -103,8 +110,12 @@ define(['exports', 'aurelia-dependency-injection', 'aurelia-templating', './inst
                         var invoke = handler.invoke;
                         handler.invoke = function (container, dynamicDependencies) {
                             var instance = invoke.call(handler, container, dynamicDependencies);
-                            container._lastDispatcher.connect(instance);
-                            container._lastDispatcher = null;
+                            try {
+                                if (container._lastDispatcher == null) instance.dispatcher.connect(instance);else container._lastDispatcher.connect(instance);
+                                container._lastDispatcher = null;
+                            } catch (e) {
+                                console.log(e);
+                            }
                             return instance;
                         };
                     })();
@@ -138,8 +149,14 @@ define(['exports', 'aurelia-dependency-injection', 'aurelia-templating', './inst
             _classCallCheck(this, InstanceDispatcher);
         }
 
-        InstanceDispatcher.prototype.dispatch = function dispatch(method, payload) {
-            this.obj.dispatch(method, payload);
+        InstanceDispatcher.prototype.dispatch = function dispatch(method) {
+            var _obj;
+
+            for (var _len4 = arguments.length, payload = Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
+                payload[_key4 - 1] = arguments[_key4];
+            }
+
+            (_obj = this.obj).dispatch.apply(_obj, [method].concat(payload));
         };
 
         InstanceDispatcher.prototype.connect = function connect(instance) {
